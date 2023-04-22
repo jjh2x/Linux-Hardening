@@ -180,9 +180,32 @@ GDM_AutomaticLogin_Disabling() {
 	STATUS_NUM=$((STATUS_NUM + 1))
 }
 
+FileInfo_Matching_VendorValue() {
+	# V-204392
+	### Ensure file permissions, ownership, and group membership of system files and commands match the vendor values ###
+
+	Title_str="File Permissions, Ownership, Group membership of 'system files' and 'commands' matching the vendor values"
+	showHardening_num "${Title_str}"
+	
+	
+	for i in `rpm -Va | grep -E '^.{1}M|^.{5}U|^.{6}G' | cut -d " " -f 4,5`
+	do
+	    echo "Iteration[i] : $i"
+ 
+	    for j in `rpm -qf $i`
+	    do 
+		rpm -ql $j --dump | cut -d " " -f 1,5,6,7 | grep $i
+
+	  	echo "Iteration[j] : $j"		
+	    done
+	done
+
+	showResult_num
+	STATUS_NUM=$((STATUS_NUM + 1))
+}
 
 UnitTest() {
-	GDM_AutomaticLogin_Disabling
+	FileInfo_Matching_VendorValue
 }
 
 UnitTest

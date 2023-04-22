@@ -27,7 +27,7 @@ case $OS_VERSION in
 	  export SERVER_IP=$(ip addr | grep '10.1' | awk '{print $2}' | cut -d '/' -f 1)
 	;;
 
-	7)
+	7|8)
 	  export SERVER_IP=$(hostname -I | awk '{print $1}')
 	;;
 esac

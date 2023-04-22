@@ -500,7 +500,7 @@ CAD_Key_Disabling_FILE() {
 		  fi
 		;;
 
-		7)
+		7|8)
 		  disableCAD_file_dir="/etc/dconf/db/local.d/00-disable-CAD"
 		  if [ ! -e $disableCAD_file_dir ]; then
 		  	echo "[org/gnome/settings-daemon/plugins/media-keys]" > $disableCAD_file_dir
@@ -549,7 +549,7 @@ CAD_Key_Disabling_Systemctl() {
 		  echo -e "${GREEN}Hardening:${NC} 'Ctrl+Alt+Del' Key is Disabled #1"
 		;;
 
-		7)
+		7|8)
 		  rhel_CAD_Key="$(systemctl mask ctrl-alt-del.target)"
 		  rhel_CAD_Key=$?
 		  if [[ "$rhel_CAD_Key" -eq 0 ]]; then
