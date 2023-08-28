@@ -373,6 +373,46 @@ SSH_Weak_Conf_Remdiation() {
 		sed -i "s/^KexAlgorithms.*/$KEX_append_str/g" /etc/ssh/sshd_config
 	fi
 
+
+	# 현재 시스템에 설정되어 있는 MAC Algorithms
+	current_MACs=$(sshd -T | grep -oP '(?<=^macs\s)\S+')
+
+	# 제외되어야 할 MAC Algorihtms
+	TOBE_DISABLED_MACs=("umac-64-etm@openssh.com" "umac-64@openssh.com" "umac-128@openssh.com" "hmac-sha1" "hmac-sha1-etm@openssh.com" "hmac-sha2-256" "hmac-sha2-512")
+
+	MACs_append_str="macs $(Filtering_Weak_Conf "$current_MACs" ${TOBE_DISABLED_MACs[@]})"
+
+	# /etc/ssh/sshd_config에 Ciphers 설정이 들어가 있는지 판단
+	grep_result="$(grep -e "^macs" /etc/ssh/sshd_config)"
+
+	# MACs 설정이 없다면
+	if [[ -z $grep_result ]]; then
+		echo "$MACs_append_str" >> /etc/ssh/sshd_config
+	# MACs 설정이 있다면
+	else
+		sed -i "s/^macs.*/$MACs_append_str/g" /etc/ssh/sshd_config
+	fi
+
+
+	# 현재 시스템에 설정되어 있는 Cipher Algorithms
+	current_Ciphers=$(sshd -T | grep -oP '(?<=^ciphers\s)\S+')
+
+	# 제외되어야 할 Cipher Algorihtms
+	TOBE_DISABLED_Ciphers=("aes128-cbc" "aes192-cbc" "aes256-cbc" "blowfish-cbc" "cast128-cbc" "3des-cbc" "ecdsa-sha2-nistp256" "ssh-rsa")
+	
+	Ciphers_append_str="ciphers $(Filtering_Weak_Conf "$current_Ciphers" ${TOBE_DISABLED_Ciphers[@]})"
+
+	# /etc/ssh/sshd_config에 Ciphers 설정이 들어가 있는지 판단
+	grep_result="$(grep -e "^ciphers" /etc/ssh/sshd_config)"
+
+	# Ciphers 설정이 없다면
+	if [[ -z $grep_result ]]; then
+		echo "$Ciphers_append_str" >> /etc/ssh/sshd_config
+	# Ciphers 설정이 있다면
+	else
+		sed -i "s/^ciphers.*/$Ciphers_append_str/g" /etc/ssh/sshd_config
+	fi
+
 	systemctl restart sshd
 
 }
