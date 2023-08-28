@@ -129,26 +129,31 @@ TFTP_Server_Remove() {
 	STATUS_NUM=$((STATUS_NUM + 1))
 }
 
-Vsftpd_Remove() {
+Vsftpd_Disable() {
 	# V-204620
 	### 'Ensure FTP Server is not enabled' ###
-	Title_str="'vsftpd' Remove"
-	showRemediating_num "${Title_str}"
 
-	FTP_Checks="$(yum list installed vsftpd)"
-	FTP_Checks=$?
-	if [[ "$FTP_Checks" -eq 1 ]]; then
-		echo -e "${GREEN}Hardening:${NC} This system has no vsfptd packge"
+	Title_str="'vsftpd' Package Remove"
+	showHardening_num "${Title_str}"
+	
+	# 현재 상태가 active이든 아니든 reboot시 vsftpd가 start 되지 않도록 해야 함
+	systemctl disable vsftpd
+
+	FTP_Checks="$(systemctl status vsftpd | grep Active | awk '{print $2}')"
+
+	# echo -e "현재 FTP_Checks : ${FTP_Checks}"
+
+	if [[ "$FTP_Checks" == "inactive" ]]; then
+		echo -e "${GREEN}Hardening:${NC} This system's vsftpd service is disabled."
 		success_func
+
+		echo -e "'vsftpd' Service disabled" | tee -a ${RESULT_FILE_NAME} > '/dev/null'
 		
-		echo -e "'vsftpd' Packages X" | tee -a ${RESULT_FILE_NAME} > '/dev/null'
-	else
-		#fail_func "${Title_str}"
-		#echo -e "'vsftpd' Packages O" | tee -a ${RESULT_FILE_NAME} > '/dev/null'
+	elif [[ "$FTP_Checks" == "active" ]]; then
+		echo -e "${RED}Not Remediated!!${NC} vsftpd disabling is Failed"
+		fail_func "${Title_str}"
 
-		echo -e "${GREEN}Hardening:${NC} This system has no vsfptd packge"
-		success_func
-
+		echo -e "'vsftpd' Service enabled" | tee -a ${RESULT_FILE_NAME} > '/dev/null'	
 	fi
 
 	showResult_num

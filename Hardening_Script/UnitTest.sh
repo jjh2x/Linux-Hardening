@@ -32,8 +32,8 @@ esac
 
 export HOSTNAME=$(hostname)
 
-export HARDENING_HOME="/root/hardening"
-export RESULT_FILE_NAME="${HARDENING_HOME}/exec_log/result_${SERVER_IP}.txt"
+export HARDENING_HOME="/opt/Hardening_Script"
+export RESULT_FILE_NAME="${HARDENING_HOME}/result_${SERVER_IP}.txt"
 touch ${RESULT_FILE_NAME}
 cat /dev/null > ${RESULT_FILE_NAME}
 
@@ -204,8 +204,85 @@ FileInfo_Matching_VendorValue() {
 	STATUS_NUM=$((STATUS_NUM + 1))
 }
 
+Vsftpd_Disable() {
+	# V-204620
+	### 'Ensure FTP Server is not enabled' ###
+
+	Title_str="'vsftpd' Package Remove"
+	showHardening_num "${Title_str}"
+	
+	# 현재 상태가 active이든 아니든 reboot시 vsftpd가 start 되지 않도록 해야 함
+	systemctl disable vsftpd
+
+	FTP_Checks="$(systemctl status vsftpd | grep Active | awk '{print $2}')"
+
+	# echo -e "현재 FTP_Checks : ${FTP_Checks}"
+
+	if [[ "$FTP_Checks" == "inactive" ]]; then
+		echo -e "${GREEN}Hardening:${NC} This system's vsftpd service is disabled."
+		success_func
+	elif [[ "$FTP_Checks" == "active" ]]; then
+
+		echo -e "${YELLOW}Disabling 'vsftpd' service...${NC}"
+
+		# vsftpd 서비스 기동 중지
+		systemctl stop vsftpd
+		FTP_Disabling_Check=$?
+
+		# vsftpd 서비스 기동 중지 성공
+		if [[ "$FTP_Disabling_Check" -eq 0 ]]; then
+			echo -e "${GREEN}Hardening:${NC} Ensure FTP Server is disabled successfully!"
+			success_func
+		
+		# vsftpd 서비스 기동 중지 실패
+		else
+			echo -e "${RED}UnabledToRemediate:${NC} FTP Server disabling is Failed"
+			fail_func
+		fi
+	
+		#HOLD_NUM=$((HOLD_NUM + 1))
+		#echo -e "${YELLOW}Hold :${NC} Machine doesn't remove 'vsftpd' Package"
+		#echo -e "'vsftpd' Packages O" | tee -a ${RESULT_FILE_NAME} > '/dev/null'
+		
+	fi
+
+	showResult_num
+	STATUS_NUM=$((STATUS_NUM + 1))
+}
+
+Vsftpd_Disable_VALI() {
+	# V-204620
+	### 'Ensure FTP Server is not enabled' ###
+
+	Title_str="'vsftpd' Package Remove"
+	showHardening_num "${Title_str}"
+	
+	# 현재 상태가 active이든 아니든 reboot시 vsftpd가 start 되지 않도록 해야 함
+	systemctl disable vsftpd
+
+	FTP_Checks="$(systemctl status vsftpd | grep Active | awk '{print $2}')"
+
+	# echo -e "현재 FTP_Checks : ${FTP_Checks}"
+
+	if [[ "$FTP_Checks" == "inactive" ]]; then
+		echo -e "${GREEN}Hardening:${NC} This system's vsftpd service is disabled."
+		success_func
+
+		echo -e "'vsftpd' Service disabled" | tee -a ${RESULT_FILE_NAME} > '/dev/null'
+		
+	elif [[ "$FTP_Checks" == "active" ]]; then
+		echo -e "${RED}Not Remediated!!${NC} vsftpd disabling is Failed"
+		fail_func "${Title_str}"
+
+		echo -e "'vsftpd' Service enabled" | tee -a ${RESULT_FILE_NAME} > '/dev/null'	
+	fi
+
+	showResult_num
+	STATUS_NUM=$((STATUS_NUM + 1))
+}
+
 UnitTest() {
-	FileInfo_Matching_VendorValue
+	Vsftpd_Disable_VALI
 }
 
 UnitTest

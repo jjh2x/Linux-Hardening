@@ -140,25 +140,37 @@ TFTP_Server_Remove() {
 	STATUS_NUM=$((STATUS_NUM + 1))
 }
 
-Vsftpd_Remove() {
+Vsftpd_Disable() {
 	# V-204620
 	### 'Ensure FTP Server is not enabled' ###
 
 	Title_str="'vsftpd' Package Remove"
 	showHardening_num "${Title_str}"
+	
+	# 현재 상태가 active이든 아니든 reboot시 vsftpd가 start 되지 않도록 해야 함
+	systemctl disable vsftpd
 
-	FTP_Checks="$(yum list installed vsftpd)"
-	FTP_Checks=$?
-	if [[ "$FTP_Checks" -eq 1 ]]; then
-		echo -e "${GREEN}Hardening:${NC} This system has no vsfptd packge"
+	FTP_Checks="$(systemctl status vsftpd | grep Active | awk '{print $2}')"
+
+	# echo -e "현재 FTP_Checks : ${FTP_Checks}"
+
+	if [[ "$FTP_Checks" == "inactive" ]]; then
+		echo -e "${GREEN}Hardening:${NC} This system's vsftpd service is disabled."
 		success_func
-	else
-		yum remove vsftpd -y
-		yum list installed | grep vsftpd
-		FTP_Checks=$?
-		if [[ "$FTP_Checks" -eq 1 ]]; then
-			echo -e "${GREEN}Hardening:${NC} Ensure FTP Server is Removed and not enabled successfully!"
+	elif [[ "$FTP_Checks" == "active" ]]; then
+
+		echo -e "${YELLOW}Disabling 'vsftpd' service...${NC}"
+
+		# vsftpd 서비스 기동 중지
+		systemctl stop vsftpd
+		FTP_Disabling_Check=$?
+
+		# vsftpd 서비스 기동 중지 성공
+		if [[ "$FTP_Disabling_Check" -eq 0 ]]; then
+			echo -e "${GREEN}Hardening:${NC} Ensure FTP Server is disabled successfully!"
 			success_func
+		
+		# vsftpd 서비스 기동 중지 실패
 		else
 			echo -e "${RED}UnabledToRemediate:${NC} FTP Server disabling is Failed"
 			fail_func
@@ -841,7 +853,7 @@ function Hardening_Machine() {
 	TelnetServer_Remove
 	#SNMP_CommunityStrings_Change
 	TFTP_Server_Remove
-	#Vsftpd_Remove
+	#Vsftpd_Disable
 	#VSFTPD_Anonymous_Disable
 	#RPM_Verifying_Hashes
 	#Setting_SSH_Protocol2
@@ -867,7 +879,7 @@ function Hardening_Server() {
 	TelnetServer_Remove
 	#SNMP_CommunityStrings_Change
 	TFTP_Server_Remove
-	Vsftpd_Remove
+	Vsftpd_Disable
 	#RPM_Verifying_Hashes
 	#Setting_SSH_Protocol2
 	#FileInfo_Matching_VendorValue
