@@ -353,7 +353,7 @@ Filtering_Weak_Conf(){
 	echo ${filtered_config_str}
 }
 
-SSH_Weak_Conf_Remdiation() {
+SSH_Weak_Conf_Remediation() {
 	# 현재 시스템에 설정되어 있는 KEX Algorithms
     current_KEX=$(sshd -T | grep -oP '(?<=^kexalgorithms\s)\S+')
 
