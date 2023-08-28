@@ -321,8 +321,64 @@ VSFTPD_Anonymous_Disable() {
 	systemctl restart vsftpd
 }
 
+Filtering_Weak_Conf(){
+	# $1 : 첫번째 argument. 현재 시스템에 설정되어 있는 config
+	IFS=',' read -ra result_array <<< $1
+
+	# $@ : 두번째 argument(배열). 제외되어야 할 config
+	TOBE_EXCEPTED_CONFIG=("$@")
+
+	filtered_config_str=""
+    for field in "${result_array[@]}"; do
+        continue_str="False"
+
+		
+        for i in "${!TOBE_EXCEPTED_CONFIG[@]}"; do
+            if [[ "${TOBE_EXCEPTED_CONFIG[i]}" == $field ]]; then
+                continue_str="True"
+                unset TOBE_EXCEPTED_CONFIG[i]
+                break
+            fi
+        done
+
+        if [[ "$continue_str" == "True" ]]; then
+            continue
+        else
+            filtered_config_str="$filtered_config_str,$field"
+        fi
+    done
+
+	filtered_config_str="$(echo $filtered_config_str | cut -c 2-)"
+
+	echo ${filtered_config_str}
+}
+
+SSH_Weak_Conf_Remdiation() {
+	# 현재 시스템에 설정되어 있는 KEX Algorithms
+    current_KEX=$(sshd -T | grep -oP '(?<=^kexalgorithms\s)\S+')
+
+	# 제외되어야 할 KEX Algorithms
+	TOBE_DISABLED_KEX=("diffie-hellman-group16-sha512" "diffie-hellman-group18-sha512" "diffie-hellman-group-exchange-sha1" "diffie-hellman-group14-sha256" "diffie-hellman-group14-sha1" "diffie-hellman-group1-sha1" "ecdh-sha2-nistp256" "ecdh-sha2-nistp384" "ecdh-sha2-nistp521")
+
+	KEX_append_str="KexAlgorithms $(Filtering_Weak_Conf "$current_KEX" ${TOBE_DISABLED_KEX[@]})"
+
+	# /etc/ssh/sshd_config에 KexAlgorithms 설정이 들어가 있는지 판단
+	grep_result="$(grep -e "^KexAlgorithms" /etc/ssh/sshd_config)"
+
+	# KexAlgorithms 설정이 없다면
+	if [[ -z $grep_result ]]; then
+		echo "$KEX_append_str" >> /etc/ssh/sshd_config
+	# KexAlogirhtms 설정이 있다면
+	else
+		sed -i "s/^KexAlgorithms.*/$KEX_append_str/g" /etc/ssh/sshd_config
+	fi
+
+	systemctl restart sshd
+
+}
+
 UnitTest() {
-	Vsftpd_Disable
+	SSH_Weak_Conf_Remdiation
 }
 
 UnitTest
