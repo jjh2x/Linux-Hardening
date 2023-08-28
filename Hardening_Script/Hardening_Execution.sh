@@ -146,6 +146,9 @@ Vsftpd_Disable() {
 
 	Title_str="'vsftpd' Package Remove"
 	showHardening_num "${Title_str}"
+
+	# FTP를 사용하든 사용하지 않든 anonymous 계정과 관련된 hardening은 무조건 수행
+	VSFTPD_Anonymous_Disable
 	
 	# 현재 상태가 active이든 아니든 reboot시 vsftpd가 start 되지 않도록 해야 함
 	systemctl disable vsftpd
@@ -830,21 +833,38 @@ GDM_AutomaticLogin_Disabling() {
 VSFTPD_Anonymous_Disable() {
 	# Disabling Anonymous FTP
 	Title_str="(Added) Disabling Anonymous FTP"
-	showHardening_num "${Title_str}"
+
+	# 'ftp' 계정이 /bin/false인지 확인
+	FTP_Shell="$(grep 'ftp' /etc/passwd | awk -F ':' '{print $7}')"
+
+	# 'ftp' 계정이 쉘 접속 불가하도록 잘 설정되어 있는 경우
+	if [[ $FTP_Shell == "/bin/false/" ]]; then
+		echo -e "'ftp' Account ${GREEN}can't access${NC} the shell"
 	
+	# 'ftp' 계정 자체가 존재하지 않는 경우
+	elif [[ -z "$FTP_Shell" ]]; then
+		echo -e "'ftp' Account does ${GREEN}not exist.${NC}"
+	
+	# 'ftp' 계정이 /bin/false 쉘로 지정되어 있지 않은 경우
+	else
+		echo -e "'ftp' account is now ${RED}can access${NC} the shell. This will ${GREEN}be Disabled!${NC}"
+		usermod -s /bin/false/ ftp
+	fi
+
+	# vsftpd.conf 에서 'anonymous' 계정 disable
 	sed -ri "s/^(\s*)anonymous_enable\s*=\s*\S+(\s*#.*)?\s*/\1anonymous_enable=NO\2/" /etc/vsftpd/vsftpd.conf
 	
 	anonyFTP_dis_result="$(egrep "^(\s*)anonymous_enable=NO(\s*)" /etc/vsftpd/vsftpd.conf)"
 	anonyFTP_dis_result=$?
 	
 	if [[ "$anonyFTP_dis_result" -eq 0 ]]; then
-		success_func
+		echo -e "Hardening related to FTP's ${BLACK}anonymous account${NC} has been ${GREEN}applied.${NC}"
 	else
-		fail_func
+		echo -e "Hardening related to FTP's ${BLACK}anonymous account${NC} has ${RED}not been applied.${NC}"
 	fi
-	
-	showResult_num
-	STATUS_NUM=$((STATUS_NUM + 1))
+
+	# vsftpd.conf 적용 위해 vsftpd 서비스 restart (ftp 서비스를 사용하는 경우 conf 파일 적용 위함)
+	systemctl restart vsftpd
 }
 
 function Hardening_Machine() {
@@ -853,8 +873,7 @@ function Hardening_Machine() {
 	TelnetServer_Remove
 	#SNMP_CommunityStrings_Change
 	TFTP_Server_Remove
-	#Vsftpd_Disable
-	#VSFTPD_Anonymous_Disable
+	Vsftpd_Disable
 	#RPM_Verifying_Hashes
 	#Setting_SSH_Protocol2
 	#FileInfo_Matching_VendorValue
