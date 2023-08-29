@@ -115,7 +115,7 @@ validating_Hardening() {
 	#echo -e "execute_option: ${execute_option}"
 	case $execute_option in
 	    machine)
-		if [[ "${VALID_NUM}" -eq 14 ]]; then
+		if [[ "${VALID_NUM}" -eq 15 ]]; then
 	    	    echo -e "${GREEN}Hardening result has not changed!${NC}"
 
 		else
