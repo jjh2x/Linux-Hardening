@@ -32,7 +32,7 @@ esac
 
 export HOSTNAME=$(hostname)
 
-export HARDENING_HOME="/opt/hardening"
+export HARDENING_HOME="/root/hardening"
 export HARDENING_LOG_DIR="${HARDENING_HOME}/exec_log"
 
 export RESULT_FILE_NAME="${HARDENING_LOG_DIR}/result_${SERVER_IP}.txt"

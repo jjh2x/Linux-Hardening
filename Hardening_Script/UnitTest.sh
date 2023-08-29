@@ -32,7 +32,7 @@ esac
 
 export HOSTNAME=$(hostname)
 
-export HARDENING_HOME="/opt/Hardening_Script"
+export HARDENING_HOME="/opt/hardening"
 export RESULT_FILE_NAME="${HARDENING_HOME}/result_${SERVER_IP}.txt"
 touch ${RESULT_FILE_NAME}
 cat /dev/null > ${RESULT_FILE_NAME}
@@ -204,11 +204,48 @@ FileInfo_Matching_VendorValue() {
 	STATUS_NUM=$((STATUS_NUM + 1))
 }
 
+VSFTPD_Anonymous_Disable() {
+	# Disabling Anonymous FTP
+	Title_str="(Added) Disabling Anonymous FTP"
+
+	# 'ftp' 계정이 /bin/false인지 확인
+	FTP_Shell="$(grep 'ftp' /etc/passwd | awk -F ':' '{print $7}')"
+
+	# 'ftp' 계정이 쉘 접속 불가하도록 잘 설정되어 있는 경우
+	if [[ $FTP_Shell == "/bin/false/" ]]; then
+		echo -e "'ftp' Account ${GREEN}can't access${NC} the shell"
+	
+	# 'ftp' 계정 자체가 존재하지 않는 경우
+	elif [[ -z "$FTP_Shell" ]]; then
+		echo -e "'ftp' Account does ${GREEN}not exist.${NC}"
+	
+	# 'ftp' 계정이 /bin/false 쉘로 지정되어 있지 않은 경우
+	else
+		echo -e "'ftp' account is now ${RED}can access${NC} the shell. This will ${GREEN}be Disabled!${NC}"
+		usermod -s /bin/false/ ftp
+	fi
+
+	# vsftpd.conf 에서 'anonymous' 계정 disable
+	sed -ri "s/^(\s*)anonymous_enable\s*=\s*\S+(\s*#.*)?\s*/\1anonymous_enable=NO\2/" /etc/vsftpd/vsftpd.conf
+	
+	anonyFTP_dis_result="$(egrep "^(\s*)anonymous_enable=NO(\s*)" /etc/vsftpd/vsftpd.conf)"
+	anonyFTP_dis_result=$?
+	
+	if [[ "$anonyFTP_dis_result" -eq 0 ]]; then
+		echo -e "Hardening related to FTP's ${BLACK}anonymous account${NC} has been ${GREEN}applied.${NC}"
+	else
+		echo -e "Hardening related to FTP's ${BLACK}anonymous account${NC} has ${RED}not been applied.${NC}"
+	fi
+
+	# vsftpd.conf 적용 위해 vsftpd 서비스 restart (ftp 서비스를 사용하는 경우 conf 파일 적용 위함)
+	systemctl restart vsftpd
+}
+
 Vsftpd_Disable() {
 	# V-204620
 	### 'Ensure FTP Server is not enabled' ###
 
-	Title_str="'vsftpd' Package Remove"
+	Title_str="'vsftpd' Package Disable"
 	showHardening_num "${Title_str}"
 
 	# FTP를 사용하든 사용하지 않든 anonymous 계정과 관련된 hardening은 무조건 수행
@@ -257,7 +294,7 @@ Vsftpd_Disable_VALI() {
 	# V-204620
 	### 'Ensure FTP Server is not enabled' ###
 
-	Title_str="'vsftpd' Package Remove"
+	Title_str="'vsftpd' Package Disable"
 	showHardening_num "${Title_str}"
 	
 	# 현재 상태가 active이든 아니든 reboot시 vsftpd가 start 되지 않도록 해야 함
@@ -284,42 +321,6 @@ Vsftpd_Disable_VALI() {
 	STATUS_NUM=$((STATUS_NUM + 1))
 }
 
-VSFTPD_Anonymous_Disable() {
-	# Disabling Anonymous FTP
-	Title_str="(Added) Disabling Anonymous FTP"
-
-	# 'ftp' 계정이 /bin/false인지 확인
-	FTP_Shell="$(grep 'ftp' /etc/passwd | awk -F ':' '{print $7}')"
-
-	# 'ftp' 계정이 쉘 접속 불가하도록 잘 설정되어 있는 경우
-	if [[ $FTP_Shell == "/bin/false/" ]]; then
-		echo -e "'ftp' Account ${GREEN}can't access${NC} the shell"
-	
-	# 'ftp' 계정 자체가 존재하지 않는 경우
-	elif [[ -z "$FTP_Shell" ]]; then
-		echo -e "'ftp' Account does ${GREEN}not exist.${NC}"
-	
-	# 'ftp' 계정이 /bin/false 쉘로 지정되어 있지 않은 경우
-	else
-		echo -e "'ftp' account is now ${RED}can access${NC} the shell. This will ${GREEN}be Disabled!${NC}"
-		usermod -s /bin/false/ ftp
-	fi
-
-	# vsftpd.conf 에서 'anonymous' 계정 disable
-	sed -ri "s/^(\s*)anonymous_enable\s*=\s*\S+(\s*#.*)?\s*/\1anonymous_enable=NO\2/" /etc/vsftpd/vsftpd.conf
-	
-	anonyFTP_dis_result="$(egrep "^(\s*)anonymous_enable=NO(\s*)" /etc/vsftpd/vsftpd.conf)"
-	anonyFTP_dis_result=$?
-	
-	if [[ "$anonyFTP_dis_result" -eq 0 ]]; then
-		echo -e "Hardening related to FTP's ${BLACK}anonymous account${NC} has been ${GREEN}applied.${NC}"
-	else
-		echo -e "Hardening related to FTP's ${BLACK}anonymous account${NC} has ${RED}not been applied.${NC}"
-	fi
-
-	# vsftpd.conf 적용 위해 vsftpd 서비스 restart (ftp 서비스를 사용하는 경우 conf 파일 적용 위함)
-	systemctl restart vsftpd
-}
 
 Filtering_Weak_Conf(){
 	# $1 : 첫번째 argument. 현재 시스템에 설정되어 있는 config
@@ -354,6 +355,9 @@ Filtering_Weak_Conf(){
 }
 
 SSH_Weak_Conf_Remediation() {
+	Title_str="SSH Weak Configuration Remediation"
+	showHardening_num "${Title_str}"
+
 	# 현재 시스템에 설정되어 있는 KEX Algorithms
     current_KEX=$(sshd -T | grep -oP '(?<=^kexalgorithms\s)\S+')
 
@@ -415,10 +419,103 @@ SSH_Weak_Conf_Remediation() {
 
 	systemctl restart sshd
 
+	echo -e "SSH Weak Configuration Hardening was ${GREEN}performed successfully!${NC}"
+}
+
+Filtering_Weak_Conf_VALI(){
+	# $1 : 첫번째 argument. 현재 시스템에 설정되어 있는 config
+	IFS=',' read -ra result_array <<< $1
+
+	# $@ : 두번째 argument(배열). 제외되어야 할 config
+	TOBE_EXCEPTED_CONFIG=("$@")
+
+    for field in "${result_array[@]}"; do
+        continue_str="False"
+
+		
+        for i in "${!TOBE_EXCEPTED_CONFIG[@]}"; do
+            if [[ "${TOBE_EXCEPTED_CONFIG[i]}" == $field ]]; then
+                continue_str="Break"
+                break
+            fi
+        done
+
+        if [[ "$continue_str" == "Break" ]]; then
+			SSH_CONF_HARDENING_RESULT="${RED}False${NC}"
+            break
+        else
+            SSH_CONF_HARDENING_RESULT="${GREEN}True${NC}"
+        fi
+    done
+
+	echo ${SSH_CONF_HARDENING_RESULT}
+}
+
+SSH_Weak_Conf_Remediation_VALI() {
+	Title_str="SSH Weak Configuration Remediation"
+	showRemediating_num "${Title_str}"
+
+	# KEX, Macs, Ciphers 모두 Remediated 되었는지 확인하기 위한 변수
+	SSH_VALI_RESULT="1"
+
+	# 현재 시스템에 설정되어 있는 KEX Algorithms
+    current_KEX=$(sshd -T | grep -oP '(?<=^kexalgorithms\s)\S+')
+
+	# 제외되어야 할 KEX Algorithms
+	TOBE_DISABLED_KEX=("diffie-hellman-group16-sha512" "diffie-hellman-group18-sha512" "diffie-hellman-group-exchange-sha1" "diffie-hellman-group14-sha256" "diffie-hellman-group14-sha1" "diffie-hellman-group1-sha1" "ecdh-sha2-nistp256" "ecdh-sha2-nistp384" "ecdh-sha2-nistp521")
+
+	# KEX Algorithms Hardening 결과 출력
+	KEX_REMEDIATED_RESULT=$(Filtering_Weak_Conf_VALI "$current_KEX" ${TOBE_DISABLED_KEX[@]})
+	if [[ "$KEX_REMEDIATED_RESULT" == "${RED}False${NC}" ]]; then
+		SSH_VALI_RESULT="0"
+	fi
+	echo -e "SSH-Server Weak ${BLUE}KEX Algorithms${NC} Hardening Status : $KEX_REMEDIATED_RESULT" | tee -a ${RESULT_FILE_NAME} > '/dev/null'
+
+
+	# 현재 시스템에 설정되어 있는 MAC Algorithms
+	current_MACs=$(sshd -T | grep -oP '(?<=^macs\s)\S+')
+
+	# 제외되어야 할 MAC Algorihtms
+	TOBE_DISABLED_MACs=("umac-64-etm@openssh.com" "umac-64@openssh.com" "umac-128@openssh.com" "hmac-sha1" "hmac-sha1-etm@openssh.com" "hmac-sha2-256" "hmac-sha2-512")
+
+	# MAC Algorithms Hardening 결과 출력
+	MACS_REMEDIATED_RESULT=$(Filtering_Weak_Conf_VALI "$current_MACs" ${TOBE_DISABLED_MACs[@]})
+	if [[ "$MACS_REMEDIATED_RESULT" == "${RED}False${NC}" ]]; then
+		SSH_VALI_RESULT="0"
+	fi
+	echo -e "SSH-Server Weak ${BLUE}MACs Algorithms${NC} Hardening Status : $MACS_REMEDIATED_RESULT" | tee -a ${RESULT_FILE_NAME} > '/dev/null'
+
+
+	# 현재 시스템에 설정되어 있는 Cipher Algorithms
+	current_Ciphers=$(sshd -T | grep -oP '(?<=^ciphers\s)\S+')
+
+	# 제외되어야 할 Cipher Algorihtms
+	TOBE_DISABLED_Ciphers=("aes128-cbc" "aes192-cbc" "aes256-cbc" "blowfish-cbc" "cast128-cbc" "3des-cbc" "ecdsa-sha2-nistp256" "ssh-rsa")
+	
+	# Cipher Algorithms Hardening 결과 출력
+	CIPHERS_REMEIDATED_RESULT=$(Filtering_Weak_Conf_VALI "$current_Ciphers" ${TOBE_DISABLED_Ciphers[@]})
+	if [[ "$CIPHERS_REMEIDATED_RESULT" == "${RED}False${NC}" ]]; then
+		SSH_VALI_RESULT="0"
+	fi
+	echo -e "SSH-Server Weak ${BLUE}Cipher Algorithms${NC} Hardening Status : $CIPHERS_REMEIDATED_RESULT" | tee -a ${RESULT_FILE_NAME} > '/dev/null'
+
+
+	# SSH_VALI_RESULT 통한 최종 검증
+	if [[ "$SSH_VALI_RESULT" == "1" ]]; then
+		echo -e "${GREEN}Hardening:${NC} SSH Weak Configuration-KEX,MACs,Ciphers"
+		success_func
+	else
+		echo -e "${RED}UnableToRemediate:${NC} SSH Weak Configuration-KEX,MACs,Ciphers"
+		fail_func
+	fi
+
+	showResult_num
+	STATUS_NUM=$((STATUS_NUM + 1))
+
 }
 
 UnitTest() {
-	SSH_Weak_Conf_Remdiation
+	SSH_Weak_Conf_Remediation_VALI
 }
 
 UnitTest

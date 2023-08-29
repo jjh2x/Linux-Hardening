@@ -35,7 +35,7 @@ esac
 export HOSTNAME=$(hostname)
 
 export HARDENING_HOME="/root/hardening"
-export HARDENING_STATUS_DIR="${HARDENING_HOME}/status/2023_Q1"
+export HARDENING_STATUS_DIR="${HARDENING_HOME}/status"
 
 export RESULT_FILE_NAME="${HARDENING_STATUS_DIR}/result_${SERVER_IP}_${DATE_NOW}.txt"
 export WARNING_FILE_NAME="${HARDENING_STATUS_DIR}/WARNING_${SERVER_IP}_${DATE_NOW}.txt"
@@ -115,7 +115,7 @@ validating_Hardening() {
 	#echo -e "execute_option: ${execute_option}"
 	case $execute_option in
 	    machine)
-		if [[ "${VALID_NUM}" -eq 13 ]]; then
+		if [[ "${VALID_NUM}" -eq 14 ]]; then
 	    	    echo -e "${GREEN}Hardening result has not changed!${NC}"
 
 		else
@@ -129,7 +129,7 @@ validating_Hardening() {
 	    ;;
 
 	    server)	
-		if [[ "${VALID_NUM}" -eq 15 ]]; then
+		if [[ "${VALID_NUM}" -eq 16 ]]; then
 	    	    echo -e "${GREEN}Hardening result has not changed!${NC}"
 
 		else
