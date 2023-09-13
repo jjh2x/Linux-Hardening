@@ -417,6 +417,25 @@ SSH_Weak_Conf_Remediation() {
 		sed -i "s/^ciphers.*/$Ciphers_append_str/g" /etc/ssh/sshd_config
 	fi
 
+	
+	# Weak HostKeyAlgorithm을 사용하는 private-key 파일 사용 제외
+	sed -i "s/^HostKey \/etc\/ssh\/ssh_host_\(rsa\|dsa\|ecdsa\)_key$/\#HostKey \/etc\/ssh\/ssh_host_\1_key/g" /etc/ssh/sshd_config
+
+	# ssh server 노드의 ed25519만 사용 - Weak HostKeyAlgorithms 제외하기 위함
+	HostKeyAlgoConfig_str="HostKeyAlgorithms ssh-ed25519"
+	# sshd_config에 HostKeyAlgorithms 설정이 존재하지 않는다면 isNotHostKeyAlgoConfig 값이 1이 됨
+	grep -E '^HostKeyAlgorithms.*' /etc/ssh/sshd_config > /dev/null
+	isNotHostKeyAlgoConfig=$?
+
+	# sshd_config에 HostKeyAlgorithms 설정이 없는 경우
+	if [[ $isNotHostKeyAlgoConfig -eq 1 ]]; then
+		echo "$HostKeyAlgoConfig_str" >> /etc/ssh/sshd_config
+	
+	# sshd_config에 HostKeyAlgorihtms 설정이 있는 경우
+	else
+		sed -i "s/^HostKeyAlgorithms.*/$HostKeyAlgoConfig_str/g" /etc/ssh/sshd_config
+	fi
+
 	systemctl restart sshd
 
 	echo -e "SSH Weak Configuration Hardening was ${GREEN}performed successfully!${NC}"
@@ -500,6 +519,18 @@ SSH_Weak_Conf_Remediation_VALI() {
 	echo -e "SSH-Server Weak ${BLUE}Cipher Algorithms${NC} Hardening Status : $CIPHERS_REMEIDATED_RESULT" | tee -a ${RESULT_FILE_NAME} > '/dev/null'
 
 
+	# 현재 시스템에 설정되어 있는 HostKey Algorithms
+	current_HostKeyAlgo=$(sshd -T | grep -oP '(?<=^hostkeyalgorithms\s)\S+')
+
+	# ssh-ed25519 외의 다른 것들이 있으면 Remediation 안 된 것으로 간주
+	if [[ "$current_HostKeyAlgo" != "ssh-ed25519" ]]; then
+		SSH_VALI_RESULT="0"
+		echo -e "SSH-Server Weak ${BLUE}HostKey Algorithms${NC} Hardening Status : ${RED}False${NC}" | tee -a ${RESULT_FILE_NAME} > '/dev/null'
+	else
+		echo -e "SSH-Server Weak ${BLUE}HostKey Algorithms${NC} Hardening Status : ${GREEN}True${NC}" | tee -a ${RESULT_FILE_NAME} > '/dev/null'
+	fi
+	
+	
 	# SSH_VALI_RESULT 통한 최종 검증
 	if [[ "$SSH_VALI_RESULT" == "1" ]]; then
 		echo -e "${GREEN}Hardening:${NC} SSH Weak Configuration-KEX,MACs,Ciphers"
@@ -515,6 +546,7 @@ SSH_Weak_Conf_Remediation_VALI() {
 }
 
 UnitTest() {
+	SSH_Weak_Conf_Remediation
 	SSH_Weak_Conf_Remediation_VALI
 }
 
