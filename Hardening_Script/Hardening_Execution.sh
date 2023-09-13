@@ -962,6 +962,25 @@ SSH_Weak_Conf_Remediation() {
 		sed -i "s/^ciphers.*/$Ciphers_append_str/g" /etc/ssh/sshd_config
 	fi
 
+
+	# Weak HostKeyAlgorithm을 사용하는 private-key 파일 사용 제외
+	sed -i "s/^HostKey \/etc\/ssh\/ssh_host_\(rsa\|dsa\|ecdsa\)_key$/\#HostKey \/etc\/ssh\/ssh_host_\1_key/g" /etc/ssh/sshd_config
+
+	# ssh server 노드의 ed25519만 사용 - Weak HostKeyAlgorithms 제외하기 위함
+	HostKeyAlgoConfig_str="HostKeyAlgorithms ssh-ed25519"
+	# sshd_config에 HostKeyAlgorithms 설정이 존재하지 않는다면 isNotHostKeyAlgoConfig 값이 1이 됨
+	grep -E '^HostKeyAlgorithms.*' /etc/ssh/sshd_config > /dev/null
+	isNotHostKeyAlgoConfig=$?
+
+	# sshd_config에 HostKeyAlgorithms 설정이 없는 경우
+	if [[ $isNotHostKeyAlgoConfig -eq 1 ]]; then
+		echo "$HostKeyAlgoConfig_str" >> /etc/ssh/sshd_config
+	
+	# sshd_config에 HostKeyAlgorihtms 설정이 있는 경우
+	else
+		sed -i "s/^HostKeyAlgorithms.*/$HostKeyAlgoConfig_str/g" /etc/ssh/sshd_config
+	fi
+
 	systemctl restart sshd
 
 	success_func

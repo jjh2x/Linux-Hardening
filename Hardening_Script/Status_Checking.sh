@@ -836,6 +836,18 @@ SSH_Weak_Conf_Remediation_VALI() {
 	echo -e "SSH-Server Weak ${BLUE}Cipher Algorithms${NC} Hardening Status : $CIPHERS_REMEIDATED_RESULT" | tee -a ${RESULT_FILE_NAME} > '/dev/null'
 
 
+	# 현재 시스템에 설정되어 있는 HostKey Algorithms
+	current_HostKeyAlgo=$(sshd -T | grep -oP '(?<=^hostkeyalgorithms\s)\S+')
+
+	# ssh-ed25519 외의 다른 것들이 있으면 Remediation 안 된 것으로 간주
+	if [[ "$current_HostKeyAlgo" != "ssh-ed25519" ]]; then
+		SSH_VALI_RESULT="0"
+		echo -e "SSH-Server Weak ${BLUE}HostKey Algorithms${NC} Hardening Status : ${RED}False${NC}" | tee -a ${RESULT_FILE_NAME} > '/dev/null'
+	else
+		echo -e "SSH-Server Weak ${BLUE}HostKey Algorithms${NC} Hardening Status : ${GREEN}True${NC}" | tee -a ${RESULT_FILE_NAME} > '/dev/null'
+	fi
+	
+	
 	# SSH_VALI_RESULT 통한 최종 검증
 	if [[ "$SSH_VALI_RESULT" == "1" ]]; then
 		echo -e "${GREEN}Hardening:${NC} SSH Weak Configuration-KEX,MACs,Ciphers"
