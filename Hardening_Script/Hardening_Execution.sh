@@ -981,6 +981,9 @@ SSH_Weak_Conf_Remediation() {
 		sed -i "s/^HostKeyAlgorithms.*/$HostKeyAlgoConfig_str/g" /etc/ssh/sshd_config
 	fi
 
+	# authorized_keys의 기존 ssh-rsa 키 정보 제거
+	sed -i '/ssh-rsa/d' ~/.ssh/authorized_keys
+
 	systemctl restart sshd
 
 	success_func
