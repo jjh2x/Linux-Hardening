@@ -996,13 +996,13 @@ function Hardening_Machine() {
 	TelnetServer_Remove
 	#SNMP_CommunityStrings_Change
 	TFTP_Server_Remove
-	Vsftpd_Disable
 	#RPM_Verifying_Hashes
 	#Setting_SSH_Protocol2
 	#FileInfo_Matching_VendorValue
 	#Grub2_FipsMode_Setting
 	Lock_NullPW_Accounts
 	Setting_SystemAccount_NonLogin
+	Vsftpd_Disable
 	Verification_Vendor_Supported_Release
 	CAD_Key_Disabling_FILE
 	CAD_Key_Disabling_Systemctl
@@ -1022,13 +1022,13 @@ function Hardening_Server() {
 	TelnetServer_Remove
 	#SNMP_CommunityStrings_Change
 	TFTP_Server_Remove
-	Vsftpd_Disable
 	#RPM_Verifying_Hashes
 	#Setting_SSH_Protocol2
 	#FileInfo_Matching_VendorValue
 	#Grub2_FipsMode_Setting
 	Lock_NullPW_Accounts
 	Setting_SystemAccount_NonLogin
+	Vsftpd_Disable
 	Verification_Vendor_Supported_Release
 	CAD_Key_Disabling_FILE
 	CAD_Key_Disabling_Systemctl
