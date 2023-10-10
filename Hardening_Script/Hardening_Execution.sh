@@ -144,23 +144,6 @@ VSFTPD_Anonymous_Disable() {
 	# Disabling Anonymous FTP
 	Title_str="(Added) Disabling Anonymous FTP"
 
-	# 'ftp' 계정이 /bin/false인지 확인
-	FTP_Shell="$(grep 'ftp' /etc/passwd | awk -F ':' '{print $7}')"
-
-	# 'ftp' 계정이 쉘 접속 불가하도록 잘 설정되어 있는 경우
-	if [[ $FTP_Shell == "/bin/false/" ]]; then
-		echo -e "'ftp' Account ${GREEN}can't access${NC} the shell"
-	
-	# 'ftp' 계정 자체가 존재하지 않는 경우
-	elif [[ -z "$FTP_Shell" ]]; then
-		echo -e "'ftp' Account does ${GREEN}not exist.${NC}"
-	
-	# 'ftp' 계정이 /bin/false 쉘로 지정되어 있지 않은 경우
-	else
-		echo -e "'ftp' account is now ${RED}can access${NC} the shell. This will ${GREEN}be Disabled!${NC}"
-		usermod -s /bin/false/ ftp
-	fi
-
 	# vsftpd.conf 에서 'anonymous' 계정 disable
 	sed -ri "s/^(\s*)anonymous_enable\s*=\s*\S+(\s*#.*)?\s*/\1anonymous_enable=NO\2/" /etc/vsftpd/vsftpd.conf
 	
@@ -181,45 +164,74 @@ Vsftpd_Disable() {
 	# V-204620
 	### 'Ensure FTP Server is not enabled' ###
 
-	Title_str="'vsftpd' Package Disable"
+	Title_str="'vsftpd' Package Disable and ftp anonymous accounts Hardening"
 	showHardening_num "${Title_str}"
 
-	# FTP를 사용하든 사용하지 않든 anonymous 계정과 관련된 hardening은 무조건 수행
-	VSFTPD_Anonymous_Disable
+	# 'ftp' 계정이 /bin/false인지 확인
+	FTP_Shell="$(grep 'ftp' /etc/passwd | awk -F ':' '{print $7}')"
+
+	# 'ftp' 계정이 쉘 접속 불가하도록 잘 설정되어 있는 경우
+	if [[ $FTP_Shell == "/bin/false/" ]]; then
+		echo -e "'ftp' Account ${GREEN}can't access${NC} the shell"
 	
-	# 현재 상태가 active이든 아니든 reboot시 vsftpd가 start 되지 않도록 해야 함
-	systemctl disable vsftpd
+	# 'ftp' 계정 자체가 존재하지 않는 경우
+	elif [[ -z "$FTP_Shell" ]]; then
+		echo -e "'ftp' Account does ${GREEN}not exist.${NC}"
+	
+	# 'ftp' 계정이 /bin/false 쉘로 지정되어 있지 않은 경우
+	else
+		echo -e "'ftp' account is now ${RED}can access${NC} the shell. This will ${GREEN}be Disabled!${NC}"
+		usermod -s /bin/false/ ftp
+	fi
 
-	FTP_Checks="$(systemctl status vsftpd | grep Active | awk '{print $2}')"
+	# 'vsftpd' 패키지 설치 여부 확인
+	yum list installed vsftpd
+	VSFTPD_CHECK=$?
 
-	# echo -e "현재 FTP_Checks : ${FTP_Checks}"
-
-	if [[ "$FTP_Checks" == "inactive" ]]; then
-		echo -e "${GREEN}Hardening:${NC} This system's vsftpd service is disabled."
+	# 'vsftpd' 패키지가 설치되어 있지 않은 경우
+	if [[ "${VSFTPD_CHECK}" -eq 1 ]]; then
+		echo -e "${GREEN}Hardening:${NC} 'vsftpd' package isn't installed in this system"
 		success_func
-	elif [[ "$FTP_Checks" == "active" ]]; then
 
-		echo -e "${YELLOW}Disabling 'vsftpd' service...${NC}"
+	# 'vsftpd' 패키지가 설치되어 있는 경우
+	elif [[ "${VSFTPD_CHECK}" -eq 0 ]]; then
+		# FTP를 사용하든 사용하지 않든 anonymous 계정과 관련된 hardening은 무조건 수행
+		VSFTPD_Anonymous_Disable
 
-		# vsftpd 서비스 기동 중지
-		systemctl stop vsftpd
-		FTP_Disabling_Check=$?
+		# 현재 상태가 active이든 아니든 reboot시 vsftpd가 start 되지 않도록 해야 함
+		systemctl disable vsftpd
 
-		# vsftpd 서비스 기동 중지 성공
-		if [[ "$FTP_Disabling_Check" -eq 0 ]]; then
-			echo -e "${GREEN}Hardening:${NC} Ensure FTP Server is disabled successfully!"
+		FTP_Checks="$(systemctl status vsftpd | grep Active | awk '{print $2}')"
+
+		# echo -e "현재 FTP_Checks : ${FTP_Checks}"
+
+		if [[ "$FTP_Checks" == "inactive" ]]; then
+			echo -e "${GREEN}Hardening:${NC} This system's vsftpd service is disabled."
 			success_func
+		elif [[ "$FTP_Checks" == "active" ]]; then
+
+			echo -e "${YELLOW}Disabling 'vsftpd' service...${NC}"
+
+			# vsftpd 서비스 기동 중지
+			systemctl stop vsftpd
+			FTP_Disabling_Check=$?
+
+			# vsftpd 서비스 기동 중지 성공
+			if [[ "$FTP_Disabling_Check" -eq 0 ]]; then
+				echo -e "${GREEN}Hardening:${NC} Ensure FTP Server is disabled successfully!"
+				success_func
+			
+			# vsftpd 서비스 기동 중지 실패
+			else
+				echo -e "${RED}UnabledToRemediate:${NC} FTP Server disabling is Failed"
+				fail_func
+			fi
 		
-		# vsftpd 서비스 기동 중지 실패
-		else
-			echo -e "${RED}UnabledToRemediate:${NC} FTP Server disabling is Failed"
-			fail_func
+			#HOLD_NUM=$((HOLD_NUM + 1))
+			#echo -e "${YELLOW}Hold :${NC} Machine doesn't remove 'vsftpd' Package"
+			#echo -e "'vsftpd' Packages O" | tee -a ${RESULT_FILE_NAME} > '/dev/null'
+			
 		fi
-	
-		#HOLD_NUM=$((HOLD_NUM + 1))
-		#echo -e "${YELLOW}Hold :${NC} Machine doesn't remove 'vsftpd' Package"
-		#echo -e "'vsftpd' Packages O" | tee -a ${RESULT_FILE_NAME} > '/dev/null'
-		
 	fi
 
 	showResult_num

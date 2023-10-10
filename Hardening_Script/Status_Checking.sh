@@ -135,25 +135,38 @@ Vsftpd_Disable_VALI() {
 
 	Title_str="'vsftpd' Package Disable"
 	showRemediating_num "${Title_str}"
+
+	# 'vsftpd' 패키지 설치 여부 확인
+	yum list installed vsftpd
+	VSFTPD_CHECK=$?
+
+	# 'vsftpd' 패키지가 설치되어 있지 않은 경우
+	if [[ "${VSFTPD_CHECK}" -eq 1 ]]; then
 	
-	# 현재 상태가 active이든 아니든 reboot시 vsftpd가 start 되지 않도록 해야 함
-	systemctl disable vsftpd
-
-	FTP_Checks="$(systemctl status vsftpd | grep Active | awk '{print $2}')"
-
-	# echo -e "현재 FTP_Checks : ${FTP_Checks}"
-
-	if [[ "$FTP_Checks" == "inactive" ]]; then
-		echo -e "${GREEN}Hardening:${NC} This system's vsftpd service is disabled."
+		echo -e "${GREEN}Hardening:${NC} 'vsftpd' package isn't installed in this system"
 		success_func
 
-		echo -e "'vsftpd' Service disabled" | tee -a ${RESULT_FILE_NAME} > '/dev/null'
-		
-	elif [[ "$FTP_Checks" == "active" ]]; then
-		echo -e "${RED}Not Remediated!!${NC} vsftpd disabling is Failed"
-		fail_func "${Title_str}"
+	# 'vsftpd' 패키지가 설치되어 있는 경우
+	elif [[ "${VSFTPD_CHECK}" -eq 0 ]]; then
 
-		echo -e "'vsftpd' Service enabled" | tee -a ${RESULT_FILE_NAME} > '/dev/null'	
+		# 현재 상태가 active이든 아니든 reboot시 vsftpd가 start 되지 않도록 해야 함
+		systemctl disable vsftpd
+
+		FTP_Checks="$(systemctl status vsftpd | grep Active | awk '{print $2}')"
+
+		if [[ "$FTP_Checks" == "inactive" ]]; then
+			echo -e "${GREEN}Hardening:${NC} This system's vsftpd service is disabled."
+			success_func
+
+			echo -e "'vsftpd' Service disabled" | tee -a ${RESULT_FILE_NAME} > '/dev/null'
+		
+		elif [[ "$FTP_Checks" == "active" ]]; then
+			echo -e "${RED}Not Remediated!!${NC} vsftpd disabling is Failed"
+			fail_func "${Title_str}"
+
+			echo -e "'vsftpd' Service enabled" | tee -a ${RESULT_FILE_NAME} > '/dev/null'	
+		fi
+			
 	fi
 
 	showResult_num

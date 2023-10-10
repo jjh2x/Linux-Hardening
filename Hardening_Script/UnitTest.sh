@@ -48,10 +48,20 @@ fail_func() {
 	echo -e "Failed!!" | tee -a ${RESULT_FILE_NAME} > '/dev/null'
 }
 
+# 하드닝 수행 유닛테스트 시 사용
 showHardening_num() {
 	# $1 : Title_str
 	echo -e "${RED}Hardening # $STATUS_NUM${NC} $1"
 	echo -e "Hardening..."
+
+	echo -e $"\n""[# $STATUS_NUM] $1"$"\n" | tee -a ${RESULT_FILE_NAME} > '/dev/null'
+}
+
+# 하드닝 검증 유닛테스트 시 사용
+showRemediating_num() {
+	# $1 : Title_str
+	echo -e "${RED}Hardening Status Checking # $STATUS_NUM${NC} $1"
+	echo -e "Checking..."
 
 	echo -e $"\n""[# $STATUS_NUM] $1"$"\n" | tee -a ${RESULT_FILE_NAME} > '/dev/null'
 }
@@ -65,165 +75,9 @@ showResult_num() {
 }
 
 
-Verification_Vendor_Supported_Release() {
-	# V-204458
-	### RHEL OS must be a vendor supported release ###
-
-	Title_str="RHEL OS must be a vendor supported release"
-	showHardening_num "${Title_str}"
-	
-	os_name=$(cat /etc/os-release | grep -E "^NAME" | cut -d "=" -f2 | cut -d "\"" -f2 | cut -d " " -f1)
-	echo -e "os_name: ${os_name}"
-	os_ver_id=$(cat /etc/os-release | grep -E "^VERSION_ID" | cut -d "=" -f2)
-	os_ver_id="${os_ver_id:1:-1}"
-
-	os_ver_major="${os_ver_id:0:1}"
-	os_ver_major=$((os_ver_major))
-
-	os_ver_minor="${os_ver_id:2}"
-	os_ver_minor=$((os_ver_minor))
-	#echo -e "os_ver_id: ${os_ver_id}"
-	echo -e "os_ver_major: ${os_ver_major}"
-	echo -e "os_ver_minor: ${os_ver_minor}"
-	
-	case $os_name in
-	    CentOS)
-		if [ "${os_ver_major}" <= 6 ] || [ "${os_ver_major}" == 8 ]; then
-		    echo -e "${RED}This OS Relase needs to be confirmed!${NC}"
-		    fail_func
-		else
-		    echo -e "${GREEN}Hardening: ${NC} This system is a vendor supported release"
-		    success_func
-		fi
-	    ;;
-	    
-	    Red)
-		if [[ "$os_ver_major" -le 6 ]]; then
-		    echo -e "${RED}This OS Relase needs to be confirmed!${NC}"
-		    fail_func
-		elif [[ "$os_ver_major" -eq 7 ]]; then
-		    if [[ "$os_ver_minor" -le 7 ]]; then
-			echo -e "${RED}This OS Relase needs to be confirmed!${NC}"
-		        fail_func
-		    else
-			echo -e "${GREEN}Hardening: ${NC} This system is a vendor supported release"
-		        success_func
-		    fi
-
-		else
-		    echo -e "${GREEN}Hardening: ${NC} This system is a vendor supported release"
-		    success_func
-		fi
-
-	    ;;
-
-	    Oracle)
-		echo -e "${GREEN}Hardening: ${NC} This system is a vendor supported release"
-		success_func
-	    ;;
-	    
-	    * )
-		echo -e "${RED}This OS Relase needs to be confirmed!${NC}"
-		fail_func
-	    ;;
-	esac
-
-	
-	showResult_num
-	STATUS_NUM=$((STATUS_NUM + 1))
-}
-
-GDM_AutomaticLogin_Disabling() {
-	# V-204432
-	### 'gnome_gdm_disable_automatic_login' ###
-
-	Title_str="Setting 'GNOME_GDM' automatic login is disabled"
-	showHardening_num "${Title_str}"
-	
-	yum list installed gdm
-	gdm_install_checks=$?
-	
-	grep -i automaticloginenable /etc/gdm/custom.conf 2>&1
-	disableAutoLogin_checks=$?
-
-	if [[ gdm_install_checks -eq 1 ]]; then
-	    echo "This system doesn't have 'gdm' Package"
-	    success_func
-
-	else
-	    #echo -e "disableAutoLogin_checks: ${disableAutoLogin_checks}"
-	    if [[ "${disalbeAutoLogin_checks}" -eq 0 ]]; then	# There is string of "AutomaticLoginEnable"
-		sed -i "s/^AutomaticLoginEnable=.*/AutomaticLoginEnable=False/g" /etc/gdm/custom.conf
-	    else
-		sed -i "/^\[daemon\]/a \
-		AutomaticLoginEnable=False" /etc/gdm/custom.conf
-	    fi	
-	
-	    # Validation
-	    str_forComparing_24="AutomaticLoginEnable=False"
-	    echo
-	    echo -e "Verifying 'AutomaticLoginEnable' option ${RED}(must return 'AutomaticLoginEnable=False')${NC}:"
-	    grep -i automaticloginenable /etc/gdm/custom.conf
-	    disableAutoLogin_checks=$?
-
-	    if [[ "${disableAutoLogin_checks}" -eq "${str_forComparing_24}" ]]; then
-		echo -e "${GREEN}Hardening:${NC} GNOME_GDM disable automatic login"
-		success_func
-	    else
-		echo -e "${RED}UnableToRemediate:${NC} GNOME_GDM disable automatic login is failed!"
-		fail_func
-	    fi
-
-	fi
-
-	showResult_num
-	STATUS_NUM=$((STATUS_NUM + 1))
-}
-
-FileInfo_Matching_VendorValue() {
-	# V-204392
-	### Ensure file permissions, ownership, and group membership of system files and commands match the vendor values ###
-
-	Title_str="File Permissions, Ownership, Group membership of 'system files' and 'commands' matching the vendor values"
-	showHardening_num "${Title_str}"
-	
-	
-	for i in `rpm -Va | grep -E '^.{1}M|^.{5}U|^.{6}G' | cut -d " " -f 4,5`
-	do
-	    echo "Iteration[i] : $i"
- 
-	    for j in `rpm -qf $i`
-	    do 
-		rpm -ql $j --dump | cut -d " " -f 1,5,6,7 | grep $i
-
-	  	echo "Iteration[j] : $j"		
-	    done
-	done
-
-	showResult_num
-	STATUS_NUM=$((STATUS_NUM + 1))
-}
-
 VSFTPD_Anonymous_Disable() {
 	# Disabling Anonymous FTP
 	Title_str="(Added) Disabling Anonymous FTP"
-
-	# 'ftp' 계정이 /bin/false인지 확인
-	FTP_Shell="$(grep 'ftp' /etc/passwd | awk -F ':' '{print $7}')"
-
-	# 'ftp' 계정이 쉘 접속 불가하도록 잘 설정되어 있는 경우
-	if [[ $FTP_Shell == "/bin/false/" ]]; then
-		echo -e "'ftp' Account ${GREEN}can't access${NC} the shell"
-	
-	# 'ftp' 계정 자체가 존재하지 않는 경우
-	elif [[ -z "$FTP_Shell" ]]; then
-		echo -e "'ftp' Account does ${GREEN}not exist.${NC}"
-	
-	# 'ftp' 계정이 /bin/false 쉘로 지정되어 있지 않은 경우
-	else
-		echo -e "'ftp' account is now ${RED}can access${NC} the shell. This will ${GREEN}be Disabled!${NC}"
-		usermod -s /bin/false/ ftp
-	fi
 
 	# vsftpd.conf 에서 'anonymous' 계정 disable
 	sed -ri "s/^(\s*)anonymous_enable\s*=\s*\S+(\s*#.*)?\s*/\1anonymous_enable=NO\2/" /etc/vsftpd/vsftpd.conf
@@ -245,45 +99,78 @@ Vsftpd_Disable() {
 	# V-204620
 	### 'Ensure FTP Server is not enabled' ###
 
-	Title_str="'vsftpd' Package Disable"
+	Title_str="'vsftpd' Package Disable and ftp anonymous accounts Hardening"
 	showHardening_num "${Title_str}"
 
-	# FTP를 사용하든 사용하지 않든 anonymous 계정과 관련된 hardening은 무조건 수행
-	VSFTPD_Anonymous_Disable
+	# 'ftp' 계정이 /bin/false인지 확인
+	FTP_Shell="$(grep 'ftp' /etc/passwd | awk -F ':' '{print $7}')"
+
+	# 'ftp' 계정이 쉘 접속 불가하도록 잘 설정되어 있는 경우
+	if [[ $FTP_Shell == "/bin/false/" ]]; then
+		echo -e "'ftp' Account ${GREEN}can't access${NC} the shell"
 	
-	# 현재 상태가 active이든 아니든 reboot시 vsftpd가 start 되지 않도록 해야 함
-	systemctl disable vsftpd
+	# 'ftp' 계정 자체가 존재하지 않는 경우
+	elif [[ -z "$FTP_Shell" ]]; then
+		echo -e "'ftp' Account does ${GREEN}not exist.${NC}"
+	
+	# 'ftp' 계정이 /bin/false 쉘로 지정되어 있지 않은 경우
+	else
+		echo -e "'ftp' account is now ${RED}can access${NC} the shell. This will ${GREEN}be Disabled!${NC}"
+		usermod -s /bin/false/ ftp
+	fi
 
-	FTP_Checks="$(systemctl status vsftpd | grep Active | awk '{print $2}')"
+	# 'vsftpd' 패키지 설치 여부 확인
+	yum list installed vsftpd
+	VSFTPD_CHECK=$?
 
-	# echo -e "현재 FTP_Checks : ${FTP_Checks}"
+	# 'vsftpd' 패키지가 설치되어 있지 않은 경우
+	if [[ "${VSFTPD_CHECK}" -eq 1 ]]; then
+		echo -e "current VSFTPD_CHECK : ${VSFTPD_CHECK}"
 
-	if [[ "$FTP_Checks" == "inactive" ]]; then
-		echo -e "${GREEN}Hardening:${NC} This system's vsftpd service is disabled."
+		echo -e "${GREEN}Hardening:${NC} 'vsftpd' package isn't installed in this system"
 		success_func
-	elif [[ "$FTP_Checks" == "active" ]]; then
 
-		echo -e "${YELLOW}Disabling 'vsftpd' service...${NC}"
+	# 'vsftpd' 패키지가 설치되어 있는 경우
+	elif [[ "${VSFTPD_CHECK}" -eq 0 ]]; then
+		echo -e "current VSFTPD_CHECK : ${VSFTPD_CHECK}"
 
-		# vsftpd 서비스 기동 중지
-		systemctl stop vsftpd
-		FTP_Disabling_Check=$?
+		# FTP를 사용하든 사용하지 않든 anonymous 계정과 관련된 hardening은 무조건 수행
+		VSFTPD_Anonymous_Disable
 
-		# vsftpd 서비스 기동 중지 성공
-		if [[ "$FTP_Disabling_Check" -eq 0 ]]; then
-			echo -e "${GREEN}Hardening:${NC} Ensure FTP Server is disabled successfully!"
+		# 현재 상태가 active이든 아니든 reboot시 vsftpd가 start 되지 않도록 해야 함
+		systemctl disable vsftpd
+
+		FTP_Checks="$(systemctl status vsftpd | grep Active | awk '{print $2}')"
+
+		# echo -e "현재 FTP_Checks : ${FTP_Checks}"
+
+		if [[ "$FTP_Checks" == "inactive" ]]; then
+			echo -e "${GREEN}Hardening:${NC} This system's vsftpd service is disabled."
 			success_func
+		elif [[ "$FTP_Checks" == "active" ]]; then
+
+			echo -e "${YELLOW}Disabling 'vsftpd' service...${NC}"
+
+			# vsftpd 서비스 기동 중지
+			systemctl stop vsftpd
+			FTP_Disabling_Check=$?
+
+			# vsftpd 서비스 기동 중지 성공
+			if [[ "$FTP_Disabling_Check" -eq 0 ]]; then
+				echo -e "${GREEN}Hardening:${NC} Ensure FTP Server is disabled successfully!"
+				success_func
+			
+			# vsftpd 서비스 기동 중지 실패
+			else
+				echo -e "${RED}UnabledToRemediate:${NC} FTP Server disabling is Failed"
+				fail_func
+			fi
 		
-		# vsftpd 서비스 기동 중지 실패
-		else
-			echo -e "${RED}UnabledToRemediate:${NC} FTP Server disabling is Failed"
-			fail_func
+			#HOLD_NUM=$((HOLD_NUM + 1))
+			#echo -e "${YELLOW}Hold :${NC} Machine doesn't remove 'vsftpd' Package"
+			#echo -e "'vsftpd' Packages O" | tee -a ${RESULT_FILE_NAME} > '/dev/null'
+			
 		fi
-	
-		#HOLD_NUM=$((HOLD_NUM + 1))
-		#echo -e "${YELLOW}Hold :${NC} Machine doesn't remove 'vsftpd' Package"
-		#echo -e "'vsftpd' Packages O" | tee -a ${RESULT_FILE_NAME} > '/dev/null'
-		
 	fi
 
 	showResult_num
@@ -295,259 +182,49 @@ Vsftpd_Disable_VALI() {
 	### 'Ensure FTP Server is not enabled' ###
 
 	Title_str="'vsftpd' Package Disable"
-	showHardening_num "${Title_str}"
-	
-	# 현재 상태가 active이든 아니든 reboot시 vsftpd가 start 되지 않도록 해야 함
-	systemctl disable vsftpd
-
-	FTP_Checks="$(systemctl status vsftpd | grep Active | awk '{print $2}')"
-
-	# echo -e "현재 FTP_Checks : ${FTP_Checks}"
-
-	if [[ "$FTP_Checks" == "inactive" ]]; then
-		echo -e "${GREEN}Hardening:${NC} This system's vsftpd service is disabled."
-		success_func
-
-		echo -e "'vsftpd' Service disabled" | tee -a ${RESULT_FILE_NAME} > '/dev/null'
-		
-	elif [[ "$FTP_Checks" == "active" ]]; then
-		echo -e "${RED}Not Remediated!!${NC} vsftpd disabling is Failed"
-		fail_func "${Title_str}"
-
-		echo -e "'vsftpd' Service enabled" | tee -a ${RESULT_FILE_NAME} > '/dev/null'	
-	fi
-
-	showResult_num
-	STATUS_NUM=$((STATUS_NUM + 1))
-}
-
-
-Filtering_Weak_Conf(){
-	# $1 : 첫번째 argument. 현재 시스템에 설정되어 있는 config
-	IFS=',' read -ra result_array <<< $1
-
-	# $@ : 두번째 argument(배열). 제외되어야 할 config
-	TOBE_EXCEPTED_CONFIG=("$@")
-
-	filtered_config_str=""
-    for field in "${result_array[@]}"; do
-        continue_str="False"
-
-		
-        for i in "${!TOBE_EXCEPTED_CONFIG[@]}"; do
-            if [[ "${TOBE_EXCEPTED_CONFIG[i]}" == $field ]]; then
-                continue_str="True"
-                unset TOBE_EXCEPTED_CONFIG[i]
-                break
-            fi
-        done
-
-        if [[ "$continue_str" == "True" ]]; then
-            continue
-        else
-            filtered_config_str="$filtered_config_str,$field"
-        fi
-    done
-
-	filtered_config_str="$(echo $filtered_config_str | cut -c 2-)"
-
-	echo ${filtered_config_str}
-}
-
-SSH_Weak_Conf_Remediation() {
-	Title_str="SSH Weak Configuration Remediation"
-	showHardening_num "${Title_str}"
-
-	# 현재 시스템에 설정되어 있는 KEX Algorithms
-    current_KEX=$(sshd -T | grep -oP '(?<=^kexalgorithms\s)\S+')
-
-	# 제외되어야 할 KEX Algorithms
-	TOBE_DISABLED_KEX=("diffie-hellman-group16-sha512" "diffie-hellman-group18-sha512" "diffie-hellman-group-exchange-sha1" "diffie-hellman-group14-sha256" "diffie-hellman-group14-sha1" "diffie-hellman-group1-sha1" "ecdh-sha2-nistp256" "ecdh-sha2-nistp384" "ecdh-sha2-nistp521")
-
-	KEX_append_str="KexAlgorithms $(Filtering_Weak_Conf "$current_KEX" ${TOBE_DISABLED_KEX[@]})"
-
-	# /etc/ssh/sshd_config에 KexAlgorithms 설정이 들어가 있는지 판단
-	grep_result="$(grep -e "^KexAlgorithms" /etc/ssh/sshd_config)"
-
-	# KexAlgorithms 설정이 없다면
-	if [[ -z $grep_result ]]; then
-		echo "$KEX_append_str" >> /etc/ssh/sshd_config
-	# KexAlogirhtms 설정이 있다면
-	else
-		sed -i "s/^KexAlgorithms.*/$KEX_append_str/g" /etc/ssh/sshd_config
-	fi
-
-
-	# 현재 시스템에 설정되어 있는 MAC Algorithms
-	current_MACs=$(sshd -T | grep -oP '(?<=^macs\s)\S+')
-
-	# 제외되어야 할 MAC Algorihtms
-	TOBE_DISABLED_MACs=("umac-64-etm@openssh.com" "umac-64@openssh.com" "umac-128@openssh.com" "hmac-sha1" "hmac-sha1-etm@openssh.com" "hmac-sha2-256" "hmac-sha2-512")
-
-	MACs_append_str="macs $(Filtering_Weak_Conf "$current_MACs" ${TOBE_DISABLED_MACs[@]})"
-
-	# /etc/ssh/sshd_config에 Ciphers 설정이 들어가 있는지 판단
-	grep_result="$(grep -e "^macs" /etc/ssh/sshd_config)"
-
-	# MACs 설정이 없다면
-	if [[ -z $grep_result ]]; then
-		echo "$MACs_append_str" >> /etc/ssh/sshd_config
-	# MACs 설정이 있다면
-	else
-		sed -i "s/^macs.*/$MACs_append_str/g" /etc/ssh/sshd_config
-	fi
-
-
-	# 현재 시스템에 설정되어 있는 Cipher Algorithms
-	current_Ciphers=$(sshd -T | grep -oP '(?<=^ciphers\s)\S+')
-
-	# 제외되어야 할 Cipher Algorihtms
-	TOBE_DISABLED_Ciphers=("aes128-cbc" "aes192-cbc" "aes256-cbc" "blowfish-cbc" "cast128-cbc" "3des-cbc" "ecdsa-sha2-nistp256" "ssh-rsa")
-	
-	Ciphers_append_str="ciphers $(Filtering_Weak_Conf "$current_Ciphers" ${TOBE_DISABLED_Ciphers[@]})"
-
-	# /etc/ssh/sshd_config에 Ciphers 설정이 들어가 있는지 판단
-	grep_result="$(grep -e "^ciphers" /etc/ssh/sshd_config)"
-
-	# Ciphers 설정이 없다면
-	if [[ -z $grep_result ]]; then
-		echo "$Ciphers_append_str" >> /etc/ssh/sshd_config
-	# Ciphers 설정이 있다면
-	else
-		sed -i "s/^ciphers.*/$Ciphers_append_str/g" /etc/ssh/sshd_config
-	fi
-
-	
-	# Weak HostKeyAlgorithm을 사용하는 private-key 파일 사용 제외
-	sed -i "s/^HostKey \/etc\/ssh\/ssh_host_\(rsa\|dsa\|ecdsa\)_key$/\#HostKey \/etc\/ssh\/ssh_host_\1_key/g" /etc/ssh/sshd_config
-
-	# ssh server 노드의 ed25519만 사용 - Weak HostKeyAlgorithms 제외하기 위함
-	HostKeyAlgoConfig_str="HostKeyAlgorithms ssh-ed25519"
-	# sshd_config에 HostKeyAlgorithms 설정이 존재하지 않는다면 isNotHostKeyAlgoConfig 값이 1이 됨
-	grep -E '^HostKeyAlgorithms.*' /etc/ssh/sshd_config > /dev/null
-	isNotHostKeyAlgoConfig=$?
-
-	# sshd_config에 HostKeyAlgorithms 설정이 없는 경우
-	if [[ $isNotHostKeyAlgoConfig -eq 1 ]]; then
-		echo "$HostKeyAlgoConfig_str" >> /etc/ssh/sshd_config
-	
-	# sshd_config에 HostKeyAlgorihtms 설정이 있는 경우
-	else
-		sed -i "s/^HostKeyAlgorithms.*/$HostKeyAlgoConfig_str/g" /etc/ssh/sshd_config
-	fi
-
-	systemctl restart sshd
-
-	echo -e "SSH Weak Configuration Hardening was ${GREEN}performed successfully!${NC}"
-}
-
-Filtering_Weak_Conf_VALI(){
-	# $1 : 첫번째 argument. 현재 시스템에 설정되어 있는 config
-	IFS=',' read -ra result_array <<< $1
-
-	# $@ : 두번째 argument(배열). 제외되어야 할 config
-	TOBE_EXCEPTED_CONFIG=("$@")
-
-    for field in "${result_array[@]}"; do
-        continue_str="False"
-
-		
-        for i in "${!TOBE_EXCEPTED_CONFIG[@]}"; do
-            if [[ "${TOBE_EXCEPTED_CONFIG[i]}" == $field ]]; then
-                continue_str="Break"
-                break
-            fi
-        done
-
-        if [[ "$continue_str" == "Break" ]]; then
-			SSH_CONF_HARDENING_RESULT="${RED}False${NC}"
-            break
-        else
-            SSH_CONF_HARDENING_RESULT="${GREEN}True${NC}"
-        fi
-    done
-
-	echo ${SSH_CONF_HARDENING_RESULT}
-}
-
-SSH_Weak_Conf_Remediation_VALI() {
-	Title_str="SSH Weak Configuration Remediation"
 	showRemediating_num "${Title_str}"
 
-	# KEX, Macs, Ciphers 모두 Remediated 되었는지 확인하기 위한 변수
-	SSH_VALI_RESULT="1"
+	# 'vsftpd' 패키지 설치 여부 확인
+	yum list installed vsftpd
+	VSFTPD_CHECK=$?
 
-	# 현재 시스템에 설정되어 있는 KEX Algorithms
-    current_KEX=$(sshd -T | grep -oP '(?<=^kexalgorithms\s)\S+')
+	# 'vsftpd' 패키지가 설치되어 있지 않은 경우
+	if [[ "${VSFTPD_CHECK}" -eq 1 ]]; then
+		echo -e "current VSFTPD_CHECK : ${VSFTPD_CHECK}"
 
-	# 제외되어야 할 KEX Algorithms
-	TOBE_DISABLED_KEX=("diffie-hellman-group16-sha512" "diffie-hellman-group18-sha512" "diffie-hellman-group-exchange-sha1" "diffie-hellman-group14-sha256" "diffie-hellman-group14-sha1" "diffie-hellman-group1-sha1" "ecdh-sha2-nistp256" "ecdh-sha2-nistp384" "ecdh-sha2-nistp521")
-
-	# KEX Algorithms Hardening 결과 출력
-	KEX_REMEDIATED_RESULT=$(Filtering_Weak_Conf_VALI "$current_KEX" ${TOBE_DISABLED_KEX[@]})
-	if [[ "$KEX_REMEDIATED_RESULT" == "${RED}False${NC}" ]]; then
-		SSH_VALI_RESULT="0"
-	fi
-	echo -e "SSH-Server Weak ${BLUE}KEX Algorithms${NC} Hardening Status : $KEX_REMEDIATED_RESULT" | tee -a ${RESULT_FILE_NAME} > '/dev/null'
-
-
-	# 현재 시스템에 설정되어 있는 MAC Algorithms
-	current_MACs=$(sshd -T | grep -oP '(?<=^macs\s)\S+')
-
-	# 제외되어야 할 MAC Algorihtms
-	TOBE_DISABLED_MACs=("umac-64-etm@openssh.com" "umac-64@openssh.com" "umac-128@openssh.com" "hmac-sha1" "hmac-sha1-etm@openssh.com" "hmac-sha2-256" "hmac-sha2-512")
-
-	# MAC Algorithms Hardening 결과 출력
-	MACS_REMEDIATED_RESULT=$(Filtering_Weak_Conf_VALI "$current_MACs" ${TOBE_DISABLED_MACs[@]})
-	if [[ "$MACS_REMEDIATED_RESULT" == "${RED}False${NC}" ]]; then
-		SSH_VALI_RESULT="0"
-	fi
-	echo -e "SSH-Server Weak ${BLUE}MACs Algorithms${NC} Hardening Status : $MACS_REMEDIATED_RESULT" | tee -a ${RESULT_FILE_NAME} > '/dev/null'
-
-
-	# 현재 시스템에 설정되어 있는 Cipher Algorithms
-	current_Ciphers=$(sshd -T | grep -oP '(?<=^ciphers\s)\S+')
-
-	# 제외되어야 할 Cipher Algorihtms
-	TOBE_DISABLED_Ciphers=("aes128-cbc" "aes192-cbc" "aes256-cbc" "blowfish-cbc" "cast128-cbc" "3des-cbc" "ecdsa-sha2-nistp256" "ssh-rsa")
-	
-	# Cipher Algorithms Hardening 결과 출력
-	CIPHERS_REMEIDATED_RESULT=$(Filtering_Weak_Conf_VALI "$current_Ciphers" ${TOBE_DISABLED_Ciphers[@]})
-	if [[ "$CIPHERS_REMEIDATED_RESULT" == "${RED}False${NC}" ]]; then
-		SSH_VALI_RESULT="0"
-	fi
-	echo -e "SSH-Server Weak ${BLUE}Cipher Algorithms${NC} Hardening Status : $CIPHERS_REMEIDATED_RESULT" | tee -a ${RESULT_FILE_NAME} > '/dev/null'
-
-
-	# 현재 시스템에 설정되어 있는 HostKey Algorithms
-	current_HostKeyAlgo=$(sshd -T | grep -oP '(?<=^hostkeyalgorithms\s)\S+')
-
-	# ssh-ed25519 외의 다른 것들이 있으면 Remediation 안 된 것으로 간주
-	if [[ "$current_HostKeyAlgo" != "ssh-ed25519" ]]; then
-		SSH_VALI_RESULT="0"
-		echo -e "SSH-Server Weak ${BLUE}HostKey Algorithms${NC} Hardening Status : ${RED}False${NC}" | tee -a ${RESULT_FILE_NAME} > '/dev/null'
-	else
-		echo -e "SSH-Server Weak ${BLUE}HostKey Algorithms${NC} Hardening Status : ${GREEN}True${NC}" | tee -a ${RESULT_FILE_NAME} > '/dev/null'
-	fi
-	
-	
-	# SSH_VALI_RESULT 통한 최종 검증
-	if [[ "$SSH_VALI_RESULT" == "1" ]]; then
-		echo -e "${GREEN}Hardening:${NC} SSH Weak Configuration-KEX,MACs,Ciphers"
+		echo -e "${GREEN}Hardening:${NC} 'vsftpd' package isn't installed in this system"
 		success_func
-	else
-		echo -e "${RED}UnableToRemediate:${NC} SSH Weak Configuration-KEX,MACs,Ciphers"
-		fail_func
+
+	# 'vsftpd' 패키지가 설치되어 있는 경우
+	elif [[ "${VSFTPD_CHECK}" -eq 0 ]]; then
+		echo -e "current VSFTPD_CHECK : ${VSFTPD_CHECK}"
+
+		# 현재 상태가 active이든 아니든 reboot시 vsftpd가 start 되지 않도록 해야 함
+		systemctl disable vsftpd
+
+		FTP_Checks="$(systemctl status vsftpd | grep Active | awk '{print $2}')"
+
+		if [[ "$FTP_Checks" == "inactive" ]]; then
+			echo -e "${GREEN}Hardening:${NC} This system's vsftpd service is disabled."
+			success_func
+
+			echo -e "'vsftpd' Service disabled" | tee -a ${RESULT_FILE_NAME} > '/dev/null'
+		
+		elif [[ "$FTP_Checks" == "active" ]]; then
+			echo -e "${RED}Not Remediated!!${NC} vsftpd disabling is Failed"
+			fail_func "${Title_str}"
+
+			echo -e "'vsftpd' Service enabled" | tee -a ${RESULT_FILE_NAME} > '/dev/null'	
+		fi
+			
 	fi
 
 	showResult_num
 	STATUS_NUM=$((STATUS_NUM + 1))
-
 }
 
 UnitTest() {
-	SSH_Weak_Conf_Remediation
-	SSH_Weak_Conf_Remediation_VALI
+	Vsftpd_Disable_VALI
 }
 
 UnitTest
